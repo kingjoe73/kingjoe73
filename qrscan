@@ -1,0 +1,117 @@
+import { useEffect, useState } from 'react';
+import { CameraView } from "expo-camera";
+import { Button, Platform, SafeAreaView, StatusBar, StyleSheet, Text, View } from "react-native";
+
+import Constants from "expo-constants";
+
+
+const serverAddress = `http://${Constants.expoConfig.hostUri.split(':')[0]}:3000`;
+
+export default function qrScan() {
+    const emptyAttendeeStatus = {attendee:null, msg:"Scan ticket.", is_checked_in:false};
+
+    const [ isCheckingIn, setIsCheckingIn ] = useState(false);
+    const [ welcomeMsg, setWelcomeMsg ] = useState();
+    const [ attendeeStatus, setAttendeeStatus ] = useState(emptyAttendeeStatus);
+
+    const scanHandler = async (data) => {
+        if (!isCheckingIn) {
+            setIsCheckingIn(true);
+            setWelcomeMsg('Please wait...');
+            setAttendeeStatus(emptyAttendeeStatus);
+
+            console.log('-> CHECKING IN ', Date.now())
+            const response = await fetch(`${serverAddress}/checkin?${data.split('?')[1]}`);
+            const json = await response.json();
+
+            setAttendeeStatus(json);
+            setIsCheckingIn(false);
+        }
+    }
+
+    useEffect(() => {
+        if (attendeeStatus != null && attendeeStatus.attendee != null) {
+            setWelcomeMsg(`Welcome ${attendeeStatus.attendee}.`);
+        }
+    }, [attendeeStatus]);
+
+    return (
+        <SafeAreaView style={styleSheet.container}>
+            {/*Platform.OS === "android" ? <StatusBar hidden /> : null*/}
+            <CameraView
+                style={styleSheet.camStyle}
+                facing="back"
+                barcodeScannerSettings={
+                    {
+                        barcodeTypes: 'qr',
+                    }
+                }
+
+                onBarcodeScanned={
+                    ({ data }) => {
+                        scanHandler(data)
+                    }
+                }
+            />
+
+            <Text style={styleSheet.msgContainer}>
+                {
+                    welcomeMsg &&
+                    <Text style={styleSheet.statusMsg}>{welcomeMsg}</Text>
+                }
+                {
+                    attendeeStatus.msg &&
+                    <Text style={styleSheet.confirmMsg}>
+                        {"\n\n"}
+                        {attendeeStatus.msg}
+                    </Text>
+                }
+            </Text>
+
+            <View>
+                <Button title="Reset" onPress={(_) => {
+                    setIsCheckingIn(false);                 
+                    setAttendeeStatus(emptyAttendeeStatus);
+                    setWelcomeMsg(null);
+                 
+                }}/>             
+            </View>
+
+        </SafeAreaView>
+    );
+
+}
+
+const styleSheet = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#fff',
+        alignItems: 'center',
+        justifyContent: 'center',
+        rowGap: 20
+    },
+    camStyle: {
+        position: 'absolute',
+        top: 100,
+        width: 300,
+        height: 300
+    },
+    msgContainer: {
+        marginTop: 200,
+        borderWidth: 1,
+        textAlign: 'center',
+        paddingTop: 10,
+        paddingBottom: 10,
+        paddingRight: 5,
+        paddingLeft: 5
+
+    },
+    statusMsg: {
+        fontSize: 25,
+        marginTop: 150,
+    },
+    confirmMsg: {
+        fontSize: 18,
+        textAlign: 'right'
+    }
+});
